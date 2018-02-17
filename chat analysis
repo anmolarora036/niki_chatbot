@@ -1,0 +1,81 @@
+#Import Table
+chat_sum<-read.csv(file.choose(),header = TRUE)
+
+#Assigned a number to each customer which indicates the step he is at in the customer flow
+chat_sum$step<-chat_sum$Deals.Option.Selected+chat_sum$Location.Picked+chat_sum$Recommendations.viewed+chat_sum$Deal.Details.Loaded+chat_sum$Offer.added+chat_sum$Deal.Selected+chat_sum$Payment.Options.Viewed+chat_sum$Succesful.Payment+chat_sum$Order.Completed
+head(chat_sum)
+
+#Converted into categorical variable
+chat_sum$step<-as.integer(chat_sum$step)
+chat_sum$category<-ifelse(chat_sum$step==1,"Deal_option_selected",
+                          ifelse(chat_sum$step==2,"Location_picked",
+                                 ifelse(chat_sum$step==3,"Recommendation_Viewed",
+                                        ifelse(chat_sum$step==4,"Deal_details_loaded",
+                                               ifelse(chat_sum$step==5,"offer_added",
+                                                      ifelse(chat_sum$step==6,"deal_selected",
+                                                             ifelse(chat_sum$step==7,"payment_viewed",
+                                                                    ifelse(chat_sum$step==8,"successfully_paid","order_completed"))))))))
+
+
+#Bar graph which shows people leave at which stage
+library(ggplot2)
+ggplot(chat_sum,aes(x=category,y=Segment))+
+  geom_bar(stat="identity",fill="green")+
+  labs(x="Category",y="Segment",title="Bar Diagram")
+
+#Import Chat files
+chats
+chats<-read.csv(file.choose(),header = TRUE)
+head(chats,n=50)
+
+#Removing of some variables
+chats$CHAT.DUMP.FOR.DATE..<-NULL
+chats$X07.Oct.2017.00.15.59.AM<-NULL
+chats$X.3<-NULL
+
+#extracting user messages
+user_chat<-subset(chats,X.2=="U")
+dim(user_chat)
+head(user_chat)
+text<-user_chat$X.4
+head(text)
+
+#Text Mining
+library(tm)
+corp <- Corpus(VectorSource(text))
+corp <- tm_map(corp, tolower)
+corp <- tm_map(corp, removePunctuation)
+corp <- tm_map(corp, removeNumbers)
+corp<-tm_map(corp,removeWords, stopwords("english"))
+writeLines(as.character(corp[[1]]))
+inspect(corp[1:3])
+dtm <- TermDocumentMatrix(corp)
+m <- as.matrix(dtm) #type m and see output of term document matrix
+findFreqTerms(dtm)
+findFreqTerms(dtm,10)
+findFreqTerms(dtm,10)
+
+#Sales Funnel
+library(ggplot2)
+library(reshape2)
+
+#create a simple data frame      
+step= c('Deal_option_selected','Location_picked','Recommendation_Viewed','Deal_details_loaded','offer_added','deal_selected','payment_viewed','successfully_paid','order_completed')
+users = c(135,124,108,65,29,22,12,3,3)
+ratio = users/users[1] 
+sales_funnel <- data.frame(step,users,ratio)
+#format the data for creating the chart
+all <- subset(sales_funnel,ratio==1)$users
+
+sales_funnel$padding <- (all - sales_funnel$users) / 2
+molten <- melt(sales_funnel[,-3],id.var = 'step')
+molten <- molten[order(molten$variable,decreasing = T),]
+molten$step <- factor(molten$step,level = rev(levels(molten$step)))
+#make the chart
+funnel_plot <- ggplot(molten, aes(x=step))  +
+  geom_bar(aes(y = value, fill = variable),stat='identity', position='stack') +
+  geom_text(data=sales_funnel,aes(y=all/2, label= paste(round(ratio*100), '%')),color='black') + scale_fill_manual(values=c("#009E73",'NA')) + 
+  coord_flip() +
+  theme(legend.position = 'none') + 
+  labs(x='Step',y='Users')
+print(funnel_plot)
